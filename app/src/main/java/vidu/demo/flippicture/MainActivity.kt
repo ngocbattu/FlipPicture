@@ -11,17 +11,22 @@ import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.recyclerview.widget.RecyclerView
+import com.android.billingclient.api.*
 import com.bumptech.glide.Glide
+import com.google.firebase.crashlytics.buildtools.reloc.com.google.common.collect.ImmutableList
 import vidu.demo.flippicture.Model.CorrectPhoto
 import vidu.demo.flippicture.Model.PhotoAnswer
 
 class MainActivity : AppCompatActivity() {
+    private val inapp_type_1 = "free_image_animal_15_day"
     lateinit var imagePhotoDapAn:ImageView
     lateinit var imagePhotoA:ImageView
     lateinit var imagePhotoB:ImageView
     lateinit var imagePhotoC:ImageView
     lateinit var imagePhotoD:ImageView
     lateinit var txtThoiGian : TextView
+    lateinit var txtSoLuotChoi : TextView
+    lateinit var imageBuyPlayOf : ImageView
     val listCorectPhoto : MutableList<CorrectPhoto> = mutableListOf()
     val listPhotoAnsw : MutableList<PhotoAnswer> = mutableListOf()
     val listPhotoAnsw1 : MutableList<PhotoAnswer> = mutableListOf()
@@ -29,6 +34,8 @@ class MainActivity : AppCompatActivity() {
     val listPhotoAnsw3 : MutableList<PhotoAnswer> = mutableListOf()
     var count : Int = 0
     var correct : CorrectPhoto = CorrectPhoto()
+    var numberOfPlay : Int = 3
+    var listProductDetails : MutableList<ProductDetails> = mutableListOf()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -38,6 +45,69 @@ class MainActivity : AppCompatActivity() {
         setCauHoi(listCorectPhoto.get(count))
         check()
         time60sGameOver()
+        txtSoLuotChoi.text = " lượt chơi :  " + numberOfPlay
+        if(numberOfPlay == 0 ){
+            Toast.makeText(this, "VUI LÒNG MUA LƯỢT CHƠI", Toast.LENGTH_SHORT).show()
+        }
+
+
+         val purchasesUpdatedListener =
+            PurchasesUpdatedListener { billingResult, purchases ->
+                // To be implemented in a later section.
+            }
+
+         var billingClient = BillingClient.newBuilder(this)
+            .setListener(purchasesUpdatedListener)
+            .enablePendingPurchases()
+            .build()
+imageBuyPlayOf.setOnClickListener(View.OnClickListener {
+    billingClient.startConnection(object : BillingClientStateListener {
+        override fun onBillingSetupFinished(billingResult: BillingResult) {
+            if (billingResult.responseCode ==  BillingClient.BillingResponseCode.OK) {
+                val queryProductDetailsParams =
+                    QueryProductDetailsParams.newBuilder()
+                        .setProductList(
+                            ImmutableList.of(
+                                QueryProductDetailsParams.Product.newBuilder()
+                                    .setProductId(inapp_type_1)
+                                    .setProductType(BillingClient.ProductType.INAPP)
+                                    .build()))
+                        .build()
+
+                billingClient.queryProductDetailsAsync(queryProductDetailsParams) {
+                        billingResult,
+                        productDetailsList ->
+                    listProductDetails = productDetailsList
+                    for (i in listProductDetails.indices){
+                        val productDetailsParamsList = listOf(
+                            BillingFlowParams.ProductDetailsParams.newBuilder()
+                                // retrieve a value for "productDetails" by calling queryProductDetailsAsync()
+                                .setProductDetails(listProductDetails.get(i))
+                                // to get an offer token, call ProductDetails.subscriptionOfferDetails()
+                                // for a list of offers that are available to the user
+                                .build()
+                        )
+
+                        val billingFlowParams = BillingFlowParams.newBuilder()
+                            .setProductDetailsParamsList(productDetailsParamsList)
+                            .build()
+
+// Launch the billing flow
+                        val billingResult = billingClient.launchBillingFlow(this@MainActivity, billingFlowParams)
+                    }
+
+                }
+
+            }
+        }
+        override fun onBillingServiceDisconnected() {
+            // Try to restart the connection on the next request to
+            // Google Play by calling the startConnection() method.
+        }
+    })
+})
+
+
     }
 
     private fun setCauHoi(correctPhoto: CorrectPhoto) {
@@ -60,6 +130,8 @@ class MainActivity : AppCompatActivity() {
         imagePhotoC = findViewById(R.id.imageAnh3)
         imagePhotoD = findViewById(R.id.imageAnh4)
         txtThoiGian = findViewById(R.id.txtThoiGian)
+        txtSoLuotChoi = findViewById(R.id.txtSoLanChoi)
+        imageBuyPlayOf = findViewById(R.id.imageBuy)
     }
     fun insertPhotosAnswen(){
         listPhotoAnsw.add(PhotoAnswer(R.drawable.gau6,true))
@@ -135,11 +207,12 @@ class MainActivity : AppCompatActivity() {
                     dialog.dismiss()
                     time60sGameOver()
                     setCauHoi(listCorectPhoto.get(count))
+                    numberOfPlay--;
+                    txtSoLuotChoi.text = " lượt chơi :  " +  numberOfPlay.toString()
                 })
                 dialog.show()
             }
 
         }.start()
     }
-
-}
+    }
